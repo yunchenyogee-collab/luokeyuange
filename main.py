@@ -1,5 +1,6 @@
 import os
 import requests
+from urllib.parse import quote
 import asyncio
 from datetime import datetime, timedelta, timezone
 from jinja2 import Environment, FileSystemLoader
@@ -182,11 +183,9 @@ def push_all(title, body, markdown, image_url):
             print("✅ NotifyMe 推送已发送")
         except: pass
     
-    if BARK_KEY:
+       if BARK_KEY:
         try:
-                        requests.get(f"https://api.day.app/{BARK_KEY}/{title}/{body}?group=洛克王国&isArchive=1", timeout=10), data={
-                "title": title, "body": body, "group": "洛克王国", "image": image_url, "isArchive": 1
-            }, timeout=10)
+            requests.get(f"https://api.day.app/{BARK_KEY}/{quote(title)}/{quote(body)}?group=洛克王国&isArchive=1", timeout=10)
             print("✅ Bark 推送已发送")
         except: pass
 
