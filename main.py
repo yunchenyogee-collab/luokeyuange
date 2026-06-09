@@ -167,7 +167,7 @@ def push_all(title, body, markdown, image_url):
     
     if BARK_KEY:
         try:
-            requests.get(f"https://api.day.app/{BARK_KEY}/{quote(title)}/{quote(body)}?group=洛克王国&isArchive=1", timeout=10)
+            requests.post(f"https://api.day.app/{BARK_KEY}/{title}/{body}", timeout=10)
             print("✅ Bark 推送已发送")
         except: pass
 
