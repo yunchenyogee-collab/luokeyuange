@@ -1,10 +1,10 @@
 import os
 import requests
-from urllib.parse import quote
 import asyncio
 from datetime import datetime, timedelta, timezone
 from jinja2 import Environment, FileSystemLoader
 from playwright.async_api import async_playwright
+from urllib.parse import quote
 
 # ================= 1. 配置区域 =================
 ROCOM_API_KEY = os.environ.get("ROCOM_API_KEY")
@@ -21,31 +21,26 @@ TEMP_RENDER_FILE = "temp_render.html"
 # ================= 2. 时间与数据处理逻辑 =================
 
 def get_beijing_time():
-    """获取精准的北京时间"""
     return datetime.now(timezone(timedelta(hours=8)))
 
 def format_timestamp(ts_ms):
-    """格式化时间戳为 HH:mm"""
     if not ts_ms: return "--:--"
     dt = datetime.fromtimestamp(int(ts_ms) / 1000, tz=timezone(timedelta(hours=8)))
     return dt.strftime("%H:%M")
 
 def get_round_info():
-    """计算当前远行商人的轮次与倒计时"""
     now = get_beijing_time()
     start_time = now.replace(hour=8, minute=0, second=0, microsecond=0)
     
     if now < start_time:
         return {"current": "未开放", "total": 4, "countdown": "尚未开市"}
     
-    # 每 4 小时一轮: 08-12, 12-16, 16-20, 20-00
     delta_seconds = int((now - start_time).total_seconds())
     round_index = (delta_seconds // (4 * 3600)) + 1
     
     if round_index > 4:
         return {"current": 4, "total": 4, "countdown": "今日已收市"}
     
-    # 计算本轮剩余时间
     round_end = start_time + timedelta(hours=round_index * 4)
     remaining = round_end - now
     hours, rem = divmod(int(remaining.total_seconds()), 3600)
@@ -53,14 +48,9 @@ def get_round_info():
     
     countdown_str = f"{hours}小时{minutes}分钟" if hours > 0 else f"{minutes}分钟"
     
-    return {
-        "current": round_index,
-        "total": 4,
-        "countdown": countdown_str
-    }
+    return {"current": round_index, "total": 4, "countdown": countdown_str}
 
 def process_data_for_template(data):
-    """清洗接口数据，精准筛选当前轮次商品"""
     if not data: return {}
     
     now_ms = int(get_beijing_time().timestamp() * 1000)
@@ -95,17 +85,14 @@ def process_data_for_template(data):
         "product_count": len(active_products),
         "round_info": round_info,
         "products": active_products,
-        
-        # --- 为了完美适配最初的原版 index.html 增加的变量 ---
-        "_res_path": "",  # 留空，让 HTML 里的相对路径生效读取本地 ttf 和 img
-        "background": "img/bg.C8CUoi7I.jpg", # 激活原版的背景图
-        "titleIcon": True # 激活原版的 Logo 显示
+        "_res_path": "",
+        "background": "img/bg.C8CUoi7I.jpg",
+        "titleIcon": True
     }
 
 # ================= 3. 图像渲染与上传 =================
 
 async def render_to_image(processed_data):
-    """渲染 HTML 并精准切割截图"""
     if not processed_data or processed_data["product_count"] == 0:
         print("当前无活跃商品，跳过渲染")
         return None
@@ -125,15 +112,12 @@ async def render_to_image(processed_data):
             browser = await p.chromium.launch()
             page = await browser.new_page()
             
-            # --- 避开手机端错乱排版，恢复完美宽度 ---
             await page.set_viewport_size({"width": 900, "height": 1200})
             await page.goto(f"file://{temp_html_path}")
             
-            # 等待字体加载完成
             await page.evaluate("document.fonts.ready")
             await page.wait_for_load_state("networkidle")
             
-            # --- 定位原版 HTML 的包裹容器 ---
             data_region = page.locator('.merchant-page')
             await data_region.screenshot(path=screenshot_file, type="jpeg", quality=90)
             
@@ -148,7 +132,6 @@ async def render_to_image(processed_data):
         if os.path.exists(temp_html_path): os.remove(temp_html_path)
 
 async def upload_to_imgbb(image_path):
-    """上传到 ImgBB 图床"""
     if not image_path or not IMGBB_KEY: return None
     try:
         with open(image_path, "rb") as f:
@@ -167,14 +150,13 @@ async def upload_to_imgbb(image_path):
 # ================= 4. 推送分发 =================
 
 def push_all(title, body, markdown, image_url):
-    """执行双通道推送"""
     if NOTIFYME_UUID:
         payload = {
             "data": {
                 "uuid": NOTIFYME_UUID, "ttl": 86400, "priority": "high",
                 "data": {
                     "title": title, "body": body, "group": "洛克王国", "bigText": True, "record": 1,
-                    "markdown": f"{markdown}\n\n![render]({image_url})" if image_url else markdown
+                    "markdown": f"{markdown}\n\n!render" if image_url else markdown
                 }
             }
         }
@@ -183,7 +165,7 @@ def push_all(title, body, markdown, image_url):
             print("✅ NotifyMe 推送已发送")
         except: pass
     
-       if BARK_KEY:
+    if BARK_KEY:
         try:
             requests.get(f"https://api.day.app/{BARK_KEY}/{quote(title)}/{quote(body)}?group=洛克王国&isArchive=1", timeout=10)
             print("✅ Bark 推送已发送")
